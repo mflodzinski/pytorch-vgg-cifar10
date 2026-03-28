@@ -1,8 +1,10 @@
 import argparse
 import os
+import random
 import shutil
 import time
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.parallel
@@ -53,6 +55,8 @@ parser.add_argument('--cpu', dest='cpu', action='store_true',
 parser.add_argument('--save-dir', dest='save_dir',
                     help='The directory used to save the trained models',
                     default='save_temp', type=str)
+parser.add_argument('--seed', default=0, type=int, metavar='N',
+                    help='random seed')
 
 
 best_prec1 = 0
@@ -62,6 +66,11 @@ def main():
     global args, best_prec1
     args = parser.parse_args()
 
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
 
     # Check the save_dir exists or not
     if not os.path.exists(args.save_dir):
@@ -88,7 +97,8 @@ def main():
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
 
-    cudnn.benchmark = True
+    cudnn.benchmark = False
+    cudnn.deterministic = True
 
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
@@ -168,8 +178,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
         data_time.update(time.time() - end)
 
         if args.cpu == False:
-            input = input.cuda(async=True)
-            target = target.cuda(async=True)
+            input = input.cuda(non_blocking=True)
+            target = target.cuda(non_blocking=True)
         if args.half:
             input = input.half()
 
@@ -217,8 +227,8 @@ def validate(val_loader, model, criterion):
     end = time.time()
     for i, (input, target) in enumerate(val_loader):
         if args.cpu == False:
-            input = input.cuda(async=True)
-            target = target.cuda(async=True)
+            input = input.cuda(non_blocking=True)
+            target = target.cuda(non_blocking=True)
 
         if args.half:
             input = input.half()

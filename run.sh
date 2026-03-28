@@ -1,14 +1,14 @@
 #!/bin/bash
 
-for model in vgg11 vgg11_bn vgg13 vgg13_bn vgg16 vgg16_bn vgg19 vgg19_bn
-do
-    echo "python main.py  --arch=$model  --save-dir=save_$model |& tee -a log_$model"
-    python main.py  --arch=$model  --save-dir=save_$model |& tee -a log_$model
-done
+set -euo pipefail
 
-for model in vgg11 vgg11_bn vgg13 vgg13_bn vgg16 vgg16_bn vgg19 vgg19_bn
-do
-    echo "python main.py  --arch=$model --half --save-dir=save_half_$model |& tee -a log_half_$model"
-    python main.py  --arch=$model --half --save-dir=save_half_$model |& tee -a log_half_$model
-done
+ARCH="${ARCH:-vgg13}"
+SEEDS=(0 1 2)
 
+for seed in "${SEEDS[@]}"
+do
+    save_dir="save_${ARCH}_seed${seed}"
+    log_file="log_${ARCH}_seed${seed}"
+    echo "python main.py --arch=${ARCH} --seed=${seed} --save-dir=${save_dir} 2>&1 | tee -a ${log_file}"
+    python main.py --arch="${ARCH}" --seed="${seed}" --save-dir="${save_dir}" 2>&1 | tee -a "${log_file}"
+done
