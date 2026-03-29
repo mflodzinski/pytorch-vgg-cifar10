@@ -28,7 +28,7 @@ parser.add_argument('--arch', '-a', metavar='ARCH', default='vgg19',
                     ' (default: vgg19)')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=300, type=int, metavar='N',
+parser.add_argument('--epochs', default=200, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
@@ -57,6 +57,8 @@ parser.add_argument('--save-dir', dest='save_dir',
                     default='save_temp', type=str)
 parser.add_argument('--seed', default=0, type=int, metavar='N',
                     help='random seed')
+parser.add_argument('--save-every', default=50, type=int, metavar='N',
+                    help='save a periodic checkpoint every N epochs')
 
 
 best_prec1 = 0
@@ -152,11 +154,21 @@ def main():
         # remember best prec@1 and save checkpoint
         is_best = prec1 > best_prec1
         best_prec1 = max(prec1, best_prec1)
-        save_checkpoint({
+        checkpoint_state = {
             'epoch': epoch + 1,
             'state_dict': model.state_dict(),
             'best_prec1': best_prec1,
-        }, is_best, filename=os.path.join(args.save_dir, 'checkpoint_{}.tar'.format(epoch)))
+        }
+        if is_best:
+            save_checkpoint(checkpoint_state, filename=os.path.join(args.save_dir, 'model_best.pth.tar'))
+        if args.save_every > 0 and (epoch + 1) % args.save_every == 0:
+            save_checkpoint(checkpoint_state, filename=os.path.join(args.save_dir, 'checkpoint_{}.tar'.format(epoch + 1)))
+
+    save_checkpoint({
+        'epoch': args.epochs,
+        'state_dict': model.state_dict(),
+        'best_prec1': best_prec1,
+    }, filename=os.path.join(args.save_dir, 'model_final.pth.tar'))
 
 
 def train(train_loader, model, criterion, optimizer, epoch):
@@ -263,7 +275,7 @@ def validate(val_loader, model, criterion):
 
     return top1.avg
 
-def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
+def save_checkpoint(state, filename='checkpoint.pth.tar'):
     """
     Save the training model
     """
