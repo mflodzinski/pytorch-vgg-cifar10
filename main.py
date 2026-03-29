@@ -1,7 +1,6 @@
 import argparse
 import os
 import random
-import shutil
 import time
 
 import numpy as np
@@ -42,6 +41,8 @@ parser.add_argument('--weight-decay', '--wd', default=5e-4, type=float,
                     metavar='W', help='weight decay (default: 5e-4)')
 parser.add_argument('--print-freq', '-p', default=20, type=int,
                     metavar='N', help='print frequency (default: 20)')
+parser.add_argument('--epoch-print-freq', default=10, type=int, metavar='N',
+                    help='print one summary line every N epochs')
 parser.add_argument('--resume', default='', type=str, metavar='PATH',
                     help='path to latest checkpoint (default: none)')
 parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
@@ -139,17 +140,19 @@ def main():
                                 weight_decay=args.weight_decay)
 
     if args.evaluate:
-        validate(val_loader, model, criterion)
+        val_loss, val_prec1 = validate(val_loader, model, criterion)
+        print('Eval: loss {:.4f}\tPrec@1 {:.3f}'.format(val_loss, val_prec1))
         return
 
     for epoch in range(args.start_epoch, args.epochs):
         adjust_learning_rate(optimizer, epoch)
+        current_lr = optimizer.param_groups[0]['lr']
 
         # train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch)
+        train_loss, train_prec1 = train(train_loader, model, criterion, optimizer, epoch)
 
         # evaluate on validation set
-        prec1 = validate(val_loader, model, criterion)
+        val_loss, prec1 = validate(val_loader, model, criterion)
 
         # remember best prec@1 and save checkpoint
         is_best = prec1 > best_prec1
@@ -163,6 +166,20 @@ def main():
             save_checkpoint(checkpoint_state, filename=os.path.join(args.save_dir, 'model_best.pth.tar'))
         if args.save_every > 0 and (epoch + 1) % args.save_every == 0:
             save_checkpoint(checkpoint_state, filename=os.path.join(args.save_dir, 'checkpoint_{}.tar'.format(epoch + 1)))
+        if ((epoch + 1) % args.epoch_print_freq == 0) or (epoch + 1 == args.epochs):
+            print(
+                'Epoch {}/{}\tlr {:.5f}\ttrain_loss {:.4f}\ttrain_acc {:.3f}\t'
+                'val_loss {:.4f}\tval_acc {:.3f}\tbest_val_acc {:.3f}'.format(
+                    epoch + 1,
+                    args.epochs,
+                    current_lr,
+                    train_loss,
+                    train_prec1,
+                    val_loss,
+                    prec1,
+                    best_prec1,
+                )
+            )
 
     save_checkpoint({
         'epoch': args.epochs,
@@ -215,14 +232,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if i % args.print_freq == 0:
-            print('Epoch: [{0}][{1}/{2}]\t'
-                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                  'Prec@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
-                      epoch, i, len(train_loader), batch_time=batch_time,
-                      data_time=data_time, loss=losses, top1=top1))
+    return losses.avg, top1.avg
 
 
 def validate(val_loader, model, criterion):
@@ -262,18 +272,7 @@ def validate(val_loader, model, criterion):
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if i % args.print_freq == 0:
-            print('Test: [{0}/{1}]\t'
-                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                  'Prec@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
-                      i, len(val_loader), batch_time=batch_time, loss=losses,
-                      top1=top1))
-
-    print(' * Prec@1 {top1.avg:.3f}'
-          .format(top1=top1))
-
-    return top1.avg
+    return losses.avg, top1.avg
 
 def save_checkpoint(state, filename='checkpoint.pth.tar'):
     """
