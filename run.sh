@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-ARCH="${ARCH:-vgg16}"
+ARCH="${ARCH:-vgg19}"
 SEEDS=(0 1)
 
 for seed in "${SEEDS[@]}"
